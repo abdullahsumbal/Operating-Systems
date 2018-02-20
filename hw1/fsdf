@@ -1,0 +1,173 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <fcntl.h>
+
+//
+// This code is given for illustration purposes. You need not include or follow this
+// strictly. Feel free to writer better or bug free code. This example code block does not
+// worry about deallocating memory. You need to ensure memory is allocated and deallocated
+// properly so that your shell works without leaking memory.
+//
+
+int child_pid = 0;
+int getcmd(char *prompt, char *args[], int *background)
+{
+	int length, i = 0;
+	char *token, *loc;
+	char *line = NULL;
+	size_t linecap = 0;
+	printf("%s", prompt);
+	length = getline(&line, &linecap, stdin);
+	if (length <= 0) {
+		exit(-1);
+	}
+// Check if background is specified..
+	if ((loc = index(line, '&')) != NULL) {
+		*background = 1;
+		*loc = ' ';
+	} else
+		*background = 0;
+	while ((token = strsep(&line, " \t\n")) != NULL) {
+		for (int j = 0; j < strlen(token); j++)
+			if (token[j] <= 32)
+				token[j] = '\0';
+		if (strlen(token) > 0)
+			args[i++] = token;
+	}
+	args[i++] = NULL;
+	return i;
+}
+
+void initialize(char *args[]) {
+	for (int i = 0; i < 20; i++) {
+		args[i] = NULL;
+	}
+	return;
+}
+
+
+static void sigintHandler(int sig)
+{
+	printf("Signal caught and kill the process!!\n");
+	//kill(child_pid, SIGKILL);
+}
+
+static void sigtstpHandler(int sig)
+{
+	printf("Signal caught and do nothing!!1\n");
+	
+}
+int main(void)
+{
+	char *args[20];
+	char *params[20] ; //= { NULL };
+	int bg;
+	int *status;
+
+	// signal handling
+	if (signal(SIGINT, sigintHandler) == SIG_ERR)
+	{
+		printf("Error! Could not bind the SIGINT signal handler\n");
+		exit(1);
+	}
+
+	if (signal(SIGTSTP, sigtstpHandler) == SIG_ERR)
+	{
+		printf("Error! Could not bind the SIGTSTP signal handler\n");
+		exit(1);
+	}
+	while(1) {
+		bg = 0;
+		initialize(args);
+		int cnt = getcmd("\n>> ", args, &bg);
+		//printf("%d\n",cnt);
+		//printf("%s\n", *(args + 0));
+		//printf("%s\n", *(args + 1));
+		if (*args){
+			if (!strcmp("ls", args[0])) { // returns 0 if they are equal , then we negate to make the if statment true
+				printf("You're trying to call ls \n");
+
+				pid_t  pid;// this is just a type def for int really..
+				pid = fork();
+				if (pid == 0) 
+					execvp(args[0], args);
+				else {
+					
+					waitpid(pid, status, WUNTRACED);
+				}
+
+			}
+			else if (!strcmp("exit", args[0])) {
+				printf("You're trying to call exit \n");
+				kill(getpid(), SIGKILL);
+			}
+			else if (!strcmp("cd", args[0])) {
+
+			int result = 0;
+			if (args[1] == NULL) { // this will fetch home directory if you just input "cd" with no arguments
+				char *home = getenv("HOME");
+				if (home != NULL) {
+					result = chdir(home);
+				}
+				else {
+					printf("cd: No $HOME variable declared in the environment");
+				}
+			}
+			//Otherwise go to specified directory
+			else {
+				result = chdir(args[1]);
+			}
+			if (result == -1) fprintf(stderr, "cd: %s: No such file or directory", args[1]);
+
+			}
+			if (!strcmp("cat", args[0])) { // returns 0 if they are equal , then we negate to make the if statment true
+				printf("You're trying to call cat \n");
+
+				if (cnt > 3){
+					if (!strcmp(">", args[2])){
+						int in, out;
+
+						in = open(args[3], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+						out = open(args[1], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+						
+						  // replace standard input with input file
+
+						  dup2(in, 0);
+
+						  // replace standard output with output file
+
+						  dup2(out, 1);
+
+						  // close unused file descriptors
+
+						  close(in);
+						  close(out);
+						  char * cat_args[] = {"cat", "main.c", "j1.c", NULL};
+						  execvp(cat_args[0], cat_args);
+					}
+				}
+				else{
+					pid_t  pid;// this is just a type def for int really..
+					pid = fork();
+					if (pid == 0) 
+						execvp(args[0], args);
+					else {
+						
+						waitpid(pid, status, WUNTRACED);
+					}
+				}
+
+			}
+		}
+		
+		/* the steps can be..:
+		(1) fork a child process using fork()
+		(2) the child process will invoke execvp()
+		(3) if background is not specified, the parent will wait,
+		 otherwise parent starts the next command... */
+	}
+}

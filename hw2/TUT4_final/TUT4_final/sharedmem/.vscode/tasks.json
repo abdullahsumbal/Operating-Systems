@@ -1,0 +1,7 @@
+{
+    "version": "0.1.0",
+    "command": "gcc",
+    "isShellCommand": true,
+    "args": ["-g","-o","client","client.c"],
+    "showOutput": "always"
+}
